@@ -136,8 +136,7 @@ local function mkP(defX,defY,w,h,title,ac,posKey)
         lb(hdr,{Position=UDim2.new(0,7,0,0),Size=UDim2.new(1,-26,1,0),Text=title,
             TextSize=8,Font=Enum.Font.GothamBlack,TextXAlignment=Enum.TextXAlignment.Left,TextColor3=T.a1})
     end
-    -- FIX: replaced Unicode dash with ASCII dash
-    local mb=btn(hdr,"-",UDim2.fromOffset(15,13),UDim2.new(1,-18,0.5,-6.5),T.surf2)
+    local mb=btn(hdr,"─",UDim2.fromOffset(15,13),UDim2.new(1,-18,0.5,-6.5),T.surf2)
     mb.TextSize=8; mb.TextColor3=T.dim; mb.BackgroundTransparency=0.6
     dragSave(hdr,f,posKey); return f,hdr,mb
 end
@@ -147,8 +146,7 @@ local function mkF(parent,hH,cH,mb)
     content.BorderSizePixel=0; content.Parent=parent
     local folded=false; local fullH=parent.Size.Y.Offset
     mb.MouseButton1Click:Connect(function()
-        -- FIX: replaced Unicode dash with ASCII dash
-        folded=not folded; mb.Text=folded and "+" or "-"
+        folded=not folded; mb.Text=folded and "+" or "─"
         TweenService:Create(parent,TweenInfo.new(0.22,Enum.EasingStyle.Quad),
             {Size=UDim2.new(0,parent.Size.X.Offset,0,folded and hH+2 or fullH)}):Play()
     end)
@@ -210,6 +208,7 @@ if vp.X==0 then vp=Vector2.new(390,844) end
 
 local isStealing=false
 
+-- Background systems (once per session)
 if not _G._AethBGv11 then
     _G._AethBGv11=true
 
@@ -245,6 +244,7 @@ if not _G._AethBGv11 then
         pg.ChildAdded:Connect(function(g) watch(g) end)
     end)
 
+    -- Anti-ragdoll
     RunService.Heartbeat:Connect(function()
         local char=lp.Character; if not char then return end
         local hum=char:FindFirstChildOfClass("Humanoid")
@@ -270,6 +270,7 @@ if not _G._AethBGv11 then
         end
     end)
 
+    -- Anti-bee (FIXED: does NOT scan for "bee" in names = no beehive tool deletion)
     RunService:BindToRenderStep("AethAntiBee",Enum.RenderPriority.Input.Value+1,function()
         local char=lp.Character; if not char then return end
         local hum=char:FindFirstChildOfClass("Humanoid")
@@ -281,6 +282,7 @@ if not _G._AethBGv11 then
                 pcall(function() obj:Destroy() end)
             end
         end
+        -- Only remove specific effect values, never tools
         for _,obj in ipairs(char:GetDescendants()) do
             if not obj:IsA("Tool") and not obj:IsA("Model") then
                 local nl=obj.Name:lower()
@@ -289,6 +291,7 @@ if not _G._AethBGv11 then
                 end
             end
         end
+        -- Correct velocity only if very clearly inverted
         if hum.MoveDirection.Magnitude>0.1 then
             local md=hum.MoveDirection
             local vel=Vector3.new(root.Velocity.X,0,root.Velocity.Z)
@@ -307,6 +310,7 @@ if not _G._AethBGv11 then
         if beeBL[obj.ClassName] then pcall(function() obj:Destroy() end) end
     end)
 
+    -- Anti-sentry v2: 3s deployment delay, skip during steal, only move primary part
     local sentryFirstSeen={}; local sentryTarget=nil
     local function isMySentry(obj)
         local id=obj.Name:match("Sentry_(%d+)") or obj.Name:match("Beehive_(%d+)") or obj.Name:match("Turret_(%d+)")
@@ -375,13 +379,15 @@ if not _G._AethBGv11 then
         end
     end)
 
-end
+end -- end _G._AethBGv11
 
+-- FOV lock (every execution)
 local FOV_LOCK=70
 RunService.RenderStepped:Connect(function()
     if cam.FieldOfView~=FOV_LOCK then cam.FieldOfView=FOV_LOCK end
 end)
 
+-- Plot detection
 local myPlotRef=nil; local stealHitbox=nil
 task.spawn(function()
     while true do
@@ -413,6 +419,7 @@ local function isMyPlot(plot)
     return yb and yb:IsA("BillboardGui") and yb.Enabled
 end
 
+-- Timer ESP (number above base)
 local timerESPs={}; local baseAlerted=false
 task.spawn(function()
     while true do
@@ -462,15 +469,18 @@ task.spawn(function()
     end
 end)
 
+-- Player ESP: SelectionBox outline (white) + BillboardGui showing name + held item
 local ESPTAG="AE_"..tostring(math.random(1000,9999))
 local function mkESP(plr)
     if plr==lp then return end
     local char=plr.Character; if not char then return end
     local hrp=char:FindFirstChild("HumanoidRootPart")
     if not hrp or char:FindFirstChild(ESPTAG) then return end
+    -- White selection box around character
     local sel=Instance.new("SelectionBox"); sel.Name=ESPTAG
     sel.Adornee=char; sel.Color3=T.white; sel.LineThickness=0.06
     sel.SurfaceTransparency=0.88; sel.SurfaceColor3=T.white; sel.Parent=char
+    -- BillboardGui above head
     local bb=Instance.new("BillboardGui",char); bb.Name=ESPTAG.."N"
     bb.Adornee=char:FindFirstChild("Head") or hrp; bb.Size=UDim2.fromOffset(130,36)
     bb.StudsOffset=Vector3.new(0,3.5,0); bb.AlwaysOnTop=true
@@ -481,6 +491,7 @@ local function mkESP(plr)
         Font=Enum.Font.GothamBold,TextSize=9,TextColor3=T.white,TextStrokeTransparency=0.45})
     local heldLbl=lb(bgE,{Size=UDim2.new(1,0,0.45,0),Position=UDim2.new(0,0,0.55,0),BackgroundTransparency=1,
         Text="",Font=Enum.Font.Gotham,TextSize=7,TextColor3=T.dim})
+    -- Update held item
     task.spawn(function()
         while bb.Parent do
             task.wait(0.5)
@@ -501,6 +512,7 @@ for _,p in ipairs(Players:GetPlayers()) do
     end
 end
 
+-- Mine ESP
 local mineESPs={}
 local function addMineESP(child)
     if mineESPs[child] then return end
@@ -524,6 +536,7 @@ end
 for _,d in pairs(workspace:GetDescendants()) do addMineESP(d) end
 workspace.DescendantAdded:Connect(function(d) task.defer(function() addMineESP(d) end) end)
 
+-- Brainrot ESP
 local brainrotESPCache={}; local brainrotESPEnabled=false; local brainrotConns={}
 local function addBrainrotESP(model,plot)
     if not model or brainrotESPCache[model] then return end
@@ -589,6 +602,7 @@ local function stopBrainrotESP()
     brainrotESPCache={}
 end
 
+-- Friends ESP
 local friendESPCache={}; local friendESPEnabled=false; local friendConns={}
 local function buildFriendBB(main,isOpen)
     local bb=Instance.new("BillboardGui"); bb.Adornee=main; bb.Size=UDim2.fromOffset(52,18)
@@ -639,6 +653,7 @@ local function stopFriendESP()
     friendESPCache={}
 end
 
+-- Brainrot Transparency (from leaked script, LocalTransparencyModifier = undetectable, auto 77%)
 local BRAIN_TRANS=0.77; local trackedBrainParts={}; local brainTransOn=false
 local brainrotNames={}
 task.spawn(function()
@@ -683,6 +698,7 @@ local function disableBrainTrans()
     trackedBrainParts={}
 end
 
+-- Base Xray (uses LocalTransparencyModifier = server-undetectable)
 local xrayOn=false; local xrayOrig={}
 local function enableXray()
     if xrayOn then return end; xrayOn=true
@@ -704,6 +720,7 @@ local function disableXray()
     xrayOrig={}
 end
 
+-- Admin remote
 local ADM_REMOTE=nil
 task.spawn(function()
     pcall(function() if not lp.Character then lp.CharacterAdded:Wait() end end)
@@ -721,7 +738,7 @@ local function aFire(tgt,cmd)
     task.spawn(function() pcall(function() ADM_REMOTE:InvokeServer(ADM_UUID,tgt,cmd) end) end)
 end
 local ROW_CD={ragdoll=30,balloon=30,tiny=60,jail=60,rocket=120}
-local CMD_ICONS={ragdoll="Rag",balloon="Bal",tiny="Tiny",jail="Jail",rocket="Rkt"}
+local CMD_ICONS={ragdoll="🤸",balloon="🎈",tiny="🐜",jail="🔒",rocket="🚀"}
 local rowCdEnd={}
 local function fireCmd(tgt,cmd)
     if not ADM_REMOTE then return end
@@ -751,6 +768,7 @@ local function activatePotion()
     end)
 end
 
+-- Irish Hub instant reset (Phantom Hub V5)
 local tpPos=CFrame.new(1000003.56,999999.69,8.17)
 local function doReset()
     local c=lp.Character; if not c then return end
@@ -833,6 +851,7 @@ local function lagSelf()
     return x
 end
 
+-- Cam align (Phantom Hub V5 exact)
 local cfA=CFrame.new(-322.066,-7.871,111.991)*CFrame.Angles(0.332,-0.019,0.000)
 local cfB=CFrame.new(-325.856,-7.866,113.027)*CFrame.Angles(0.327,3.130,0.000)
 local lookA2=cfA.LookVector; local lookB2=cfB.LookVector; local desiredY=lookA2.Y
@@ -856,6 +875,7 @@ local function alignCam()
     task.wait(); cam.CameraType=Enum.CameraType.Custom
 end
 
+-- EXT steal callbacks (Phantom Hub V5 exact)
 local StealCBCache={}
 local function buildStealCBs(prompt)
     if StealCBCache[prompt] then return end
@@ -881,6 +901,7 @@ local function fireStealCBs(prompt)
     for _,fn in ipairs(data.trig) do task.spawn(fn) end
 end
 
+-- FLASH TP (Phantom Hub V5 exact + RF bypass)
 local flashEnabled=Cfg.flashOn; local sliderValue=Cfg.triggerChance/100
 local activePrompts={}; local lagOnSteal=false
 PPS.PromptButtonHoldBegan:Connect(function(prompt)
@@ -915,22 +936,26 @@ PPS.PromptButtonHoldBegan:Connect(function(prompt)
     end)
 end)
 
+-- Speed (works even with Giant Potion active via direct velocity override)
 local stealSpdOn=Cfg.stealSpdOn; local STEAL_SPD_VAL=math.clamp(Cfg.stealSpdVal or 30,10,60)
 local speedEnabled=stealSpdOn; local stealingSpeed=STEAL_SPD_VAL
 local potionActive=false
+-- Detect potion activation
 RunService.Heartbeat:Connect(function()
     local char=lp.Character; if not char then return end
     local tool=char:FindFirstChild("Giant Potion")
-    potionActive=tool~=nil
+    potionActive = tool~=nil
     if not speedEnabled then return end
     local root=char:FindFirstChild("HumanoidRootPart")
     local hum=char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
     if hum.MoveDirection.Magnitude>0 then
+        -- Override potion speed too
         root.Velocity=Vector3.new(hum.MoveDirection.X*stealingSpeed,root.Velocity.Y,hum.MoveDirection.Z*stealingSpeed)
     end
 end)
 
+-- Auto Grab v2 (Phantom Grab v2 exact, no GUI, toggleable)
 local grabEnabled=Cfg.grabOn; local activeHolds={}
 local GRAB_DIST=12; local HOLD_DUR_GRAB=1.5
 local function getAllGrabPrompts()
@@ -1003,6 +1028,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- Base Protector
 local antiSteal=false; local autoKickBase=false; local lastPunish={}; local myStealPrompts={}
 task.spawn(function()
     while true do
@@ -1085,6 +1111,7 @@ task.spawn(function()
     end)
 end)
 
+-- Admin detection
 local adminWarnLbl=nil
 task.spawn(function()
     task.wait(5)
@@ -1160,12 +1187,14 @@ end)
 -- PANELS
 task.wait(0.15); vp=cam.ViewportSize; if vp.X==0 then vp=Vector2.new(390,844) end
 
+-- Discord watermark center screen
 local discWM=Instance.new("TextLabel",SG); discWM.Size=UDim2.fromOffset(200,22)
 discWM.Position=UDim2.new(0.5,-100,0.4,-11); discWM.BackgroundTransparency=1
 discWM.Text=DISCORD_LINK; discWM.Font=Enum.Font.GothamBlack; discWM.TextSize=13
 discWM.TextColor3=T.a1; discWM.TextTransparency=0.96; discWM.ZIndex=1
 TweenService:Create(discWM,TweenInfo.new(2.8,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut,-1,true),{TextTransparency=0.52}):Play()
 
+-- Header box
 local hdrW=210; local hdrH=100
 local hdrF=Instance.new("Frame",SG); hdrF.Size=UDim2.fromOffset(hdrW,hdrH)
 hdrF.Position=UDim2.fromOffset(math.floor(vp.X*0.5-hdrW*0.5),4)
@@ -1238,6 +1267,7 @@ prBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
+-- Admin warning
 local warnF=Instance.new("Frame",SG); warnF.Size=UDim2.fromOffset(300,18)
 warnF.Position=UDim2.new(0.5,-150,1,-42); warnF.BackgroundColor3=Color3.fromRGB(10,3,3)
 warnF.BackgroundTransparency=0.18; warnF.BorderSizePixel=0; co(warnF,5)
@@ -1253,13 +1283,13 @@ task.spawn(function()
     end
 end)
 
+-- Flash TP panel
 local FP_W=148; local CONT_H=192; local FP_H=21+20+CONT_H+4
 local FP_defX=math.floor(vp.X-FP_W-5); local FP_defY=5
 local FP,_,fpMin=mkP(FP_defX,FP_defY,FP_W,FP_H,"Flash TP",T.a2,"pos_FP")
 local fpFolded=false; local FP_fullH=FP_H
 fpMin.MouseButton1Click:Connect(function()
-    -- FIX: replaced Unicode dash with ASCII dash
-    fpFolded=not fpFolded; fpMin.Text=fpFolded and "+" or "-"
+    fpFolded=not fpFolded; fpMin.Text=fpFolded and "+" or "─"
     TweenService:Create(FP,TweenInfo.new(0.22,Enum.EasingStyle.Quad),
         {Size=UDim2.fromOffset(FP_W,fpFolded and 23 or FP_fullH)}):Play()
 end)
@@ -1285,6 +1315,7 @@ tabMainBtn.MouseButton1Click:Connect(function() setTab(true) end)
 tabExtraBtn.MouseButton1Click:Connect(function() setTab(false) end)
 setTab(true)
 
+-- Lag toggle
 local lagRow=Instance.new("Frame",pg1); lagRow.Size=UDim2.fromOffset(FP_W-10,21); lagRow.Position=UDim2.fromOffset(5,4)
 lagRow.BackgroundColor3=T.surf; lagRow.BackgroundTransparency=0.28; lagRow.BorderSizePixel=0; co(lagRow,6)
 local lagRS=ms(lagRow,1,T.str,0.55)
@@ -1304,6 +1335,7 @@ local function setLag(v)
 end
 lagBtnR.MouseButton1Click:Connect(function() setLag(not lagOnSteal) end)
 
+-- Potion toggle
 local potRow=Instance.new("Frame",pg1); potRow.Size=UDim2.fromOffset(FP_W-10,21); potRow.Position=UDim2.fromOffset(5,28)
 potRow.BackgroundColor3=T.surf; potRow.BackgroundTransparency=0.28; potRow.BorderSizePixel=0; co(potRow,6)
 local potRS=ms(potRow,1,T.str,0.55)
@@ -1327,6 +1359,7 @@ potBtnR.MouseButton1Click:Connect(function() potionOn=not potionOn; Cfg.potionOn
 local sep1=Instance.new("Frame",pg1); sep1.Size=UDim2.new(1,-10,0,1); sep1.Position=UDim2.fromOffset(5,52)
 sep1.BackgroundColor3=T.str; sep1.BackgroundTransparency=0.68; sep1.BorderSizePixel=0
 
+-- Flash TP toggle
 local togRow=Instance.new("Frame",pg1); togRow.Size=UDim2.fromOffset(FP_W-10,21); togRow.Position=UDim2.fromOffset(5,56)
 togRow.BackgroundColor3=T.surf; togRow.BackgroundTransparency=0.28; togRow.BorderSizePixel=0; co(togRow,6)
 local togRS=ms(togRow,1,T.str,0.55)
@@ -1392,6 +1425,7 @@ rstBtn.TextSize=8; rstBtn.TextColor3=T.red
 do local s=rstBtn:FindFirstChildOfClass("UIStroke"); if s then s.Color=T.red; s.Transparency=0.3 end end
 rstBtn.MouseButton1Click:Connect(function() task.spawn(doReset) end)
 
+-- EXTRAS page
 local ssB,ssSet=pillR(pg2,"Steal Speed",4,T.grn)
 ssB.MouseButton1Click:Connect(function()
     stealSpdOn=not stealSpdOn; speedEnabled=stealSpdOn; ssSet(stealSpdOn); Cfg.stealSpdOn=stealSpdOn; save()
@@ -1417,6 +1451,7 @@ xrB.MouseButton1Click:Connect(function()
     if xrayOn then disableXray(); xrSet(false) else enableXray(); xrSet(true) end
 end)
 
+-- Aethens panel
 local AP_W2=130; local AP_CH=72; local AP_H2=21+AP_CH+6
 local AP_defX=4; local AP_defY=hdrH+4+8
 local APan,_,apMin=mkP(AP_defX,AP_defY,AP_W2,AP_H2,"Aethens",T.a1,"pos_AP")
@@ -1444,7 +1479,8 @@ kickB.MouseButton1Click:Connect(function() kickB.Text="..."; lp:Kick(DISCORD_LIN
 local rstAB=apB("Instant Reset",T.red,Color3.fromRGB(30,6,6))
 rstAB.MouseButton1Click:Connect(function() task.spawn(doReset) end)
 
-local RCMDS={{cmd="ragdoll",icon="Rag"},{cmd="balloon",icon="Bal"},{cmd="tiny",icon="Tiny"},{cmd="jail",icon="Jail"},{cmd="rocket",icon="Rkt"}}
+-- Admin panel
+local RCMDS={{cmd="ragdoll",icon="🤸"},{cmd="balloon",icon="🎈"},{cmd="tiny",icon="🐜"},{cmd="jail",icon="🔒"},{cmd="rocket",icon="🚀"}}
 local IW2=16; local IH2=18; local IG2=2; local ADM_W=186
 local ITOT=#RCMDS*(IW2+IG2)-IG2; local CW2=ADM_W-12; local CSTART=CW2-ITOT-3
 local ADM_defX=math.floor(vp.X-ADM_W-5); local ADM_defY=FP_H+FP_defY+5
@@ -1463,8 +1499,7 @@ local function resADM()
 end
 pLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resADM)
 admMin.MouseButton1Click:Connect(function()
-    -- FIX: replaced Unicode dash with ASCII dash
-    admFolded=not admFolded; admMin.Text=admFolded and "+" or "-"; pScroll.Visible=not admFolded
+    admFolded=not admFolded; admMin.Text=admFolded and "+" or "─"; pScroll.Visible=not admFolded
     if admFolded then
         TweenService:Create(ADMpan,TweenInfo.new(0.2,Enum.EasingStyle.Quad),{Size=UDim2.fromOffset(ADM_W,24)}):Play()
     else
@@ -1497,7 +1532,7 @@ local function refreshPlayers()
             local bx=CSTART+3+(i-1)*(IW2+IG2)
             local ib=Instance.new("TextButton",card); ib.Size=UDim2.fromOffset(IW2,IH2)
             ib.Position=UDim2.new(0,bx,0.5,-IH2/2); ib.BackgroundColor3=T.surf2; ib.BackgroundTransparency=0.22
-            ib.Text=def.icon; ib.TextSize=9; ib.TextColor3=T.a1; ib.Font=Enum.Font.GothamBold
+            ib.Text=def.icon; ib.TextSize=11; ib.TextColor3=T.a1; ib.Font=Enum.Font.GothamBold
             ib.BorderSizePixel=0; ib.AutoButtonColor=false; ib.Parent=card; co(ib,4); ms(ib,1,T.str,0.52)
             cmdBtnRefs[p.UserId][def.cmd]=ib
             local pd=p; local dc=def.cmd
@@ -1520,6 +1555,7 @@ Players.PlayerAdded:Connect(function() task.wait(0.5); refreshPlayers() end)
 Players.PlayerRemoving:Connect(function() task.wait(0.2); refreshPlayers() end)
 task.delay(2,refreshPlayers)
 
+-- Base Protector panel
 local BP_W=136; local BP_CH=4*23+6; local BP_H=21+BP_CH+6
 local BP_defX=math.floor(vp.X*0.5-BP_W*0.5); local BP_defY=math.floor(vp.Y*0.5-BP_H*0.5)
 local BPpan,_,bpMin=mkP(BP_defX,BP_defY,BP_W,BP_H,"Base Protector",T.a1,"pos_BP")
@@ -1571,6 +1607,7 @@ local arB,arSet=pillR(bpC,"Anti Ragdoll",pyy,T.grn)
 arSet(true)
 arB.MouseButton1Click:Connect(function() end)
 
+-- Reset panels
 rsPnlBtn.ZIndex=5
 rsPnlBtn.MouseButton1Click:Connect(function()
     local popup=Instance.new("Frame",SG); popup.Size=UDim2.fromOffset(188,62)
